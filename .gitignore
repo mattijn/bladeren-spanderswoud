@@ -1,0 +1,14 @@
+# Lokale verkenning met commerciele beelden: niet publiceren
+cache/
+mosaics/
+fetch_mosaics.py
+contact_sheet.py
+selection.py
+contact_autumn.png
+selection_autumn.png
+
+# Grote tussenresultaten (reproduceerbaar met s2_extract.py)
+s2/*.npz
+s2/*_grid.json
+s2/*.log
+!s2/cube_grid.json

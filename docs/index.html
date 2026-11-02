@@ -1,0 +1,781 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bladeren in Spanderswoud</title>
+<meta name="description" content="Kwamen de bladeren dit jaar later en hangen ze daardoor langer aan de bomen? Bladuitloop en verkleuring van het loofbos in Spanderswoud (Hilversum) uit Sentinel-2, 2017-2026.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@observablehq/plot@0.6.16/dist/plot.umd.min.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --surface-0: #ffffff;
+  --surface-1: #ffffff;
+  --panel: #f3f3f3;
+  --border: #d6d6d6;
+  --grid: #e3e3e3;
+  --text-primary: #22262a;
+  --text-secondary: #4b5157;
+  --text-muted: #6b7177;
+  --brand: #01689d;
+  --brand-dark: #154273;
+  --brand-light: #cbdff1;
+  --brand-tint: #e6f0f8;
+  --on-brand: #ffffff;
+  --accent: #ca005d;          /* 2026 */
+  --context: #8c9196;
+  --context-soft: #cfd2d5;
+  --ref: #4b5157;
+  --map-out: #ebebeb;
+  --map-naald: #b8bcbf;
+  --seq-lo: #eef3e2;
+  --seq-hi: #2d6a1f;
+  /* jaren 2017 -> 2025: licht -> donker (ordinaal, één tint) */
+  --years: #86b6ef,#6da7ec,#5598e7,#3987e5,#2a78d6,#256abf,#1c5cab,#184f95,#104281;
+  /* dag-van-het-jaar: vroeg licht -> laat donker; afwijking: eerder blauw, later robijnrood, grijs midden */
+  --doy: #cde2fb,#86b6ef,#3987e5,#1c5cab,#0d366b;
+  --div: #01689d,#eeeeee,#ca005d;
+  --notyet: #4b5157;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --surface-0: #12161a;
+    --surface-1: #12161a;
+    --panel: #1b2026;
+    --border: #2f363d;
+    --grid: #2a3037;
+    --text-primary: #eef1f4;
+    --text-secondary: #c2c8ce;
+    --text-muted: #949ba2;
+    --brand: #2b8cc4;
+    --brand-dark: #8fc3e8;
+    --brand-light: #1c3448;
+    --brand-tint: #17293a;
+    --on-brand: #ffffff;
+    --accent: #e0457f;
+    --context: #8f969c;
+    --context-soft: #3c434a;
+    --ref: #c2c8ce;
+    --map-out: #20262c;
+    --map-naald: #4a5158;
+    --seq-lo: #2b3326;
+    --seq-hi: #9fd67e;
+    --years: #184f95,#1c5cab,#256abf,#2a78d6,#3987e5,#5598e7,#6da7ec,#86b6ef,#9ec5f4;
+    --doy: #104281,#1c5cab,#3987e5,#86b6ef,#cde2fb;
+    --div: #2b8cc4,#383d42,#e0457f;
+    --notyet: #c2c8ce;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0: #12161a;
+  --surface-1: #12161a;
+  --panel: #1b2026;
+  --border: #2f363d;
+  --grid: #2a3037;
+  --text-primary: #eef1f4;
+  --text-secondary: #c2c8ce;
+  --text-muted: #949ba2;
+  --brand: #2b8cc4;
+  --brand-dark: #8fc3e8;
+  --brand-light: #1c3448;
+  --brand-tint: #17293a;
+  --on-brand: #ffffff;
+  --accent: #e0457f;
+  --context: #8f969c;
+  --context-soft: #3c434a;
+  --ref: #c2c8ce;
+  --map-out: #20262c;
+  --map-naald: #4a5158;
+  --seq-lo: #2b3326;
+  --seq-hi: #9fd67e;
+  --years: #184f95,#1c5cab,#256abf,#2a78d6,#3987e5,#5598e7,#6da7ec,#86b6ef,#9ec5f4;
+  --doy: #104281,#1c5cab,#3987e5,#86b6ef,#cde2fb;
+  --div: #2b8cc4,#383d42,#e0457f;
+  --notyet: #c2c8ce;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--surface-0); color: var(--text-primary);
+  font: 16px/1.5 "Source Sans 3", "Segoe UI", Verdana, sans-serif; }
+.band { background: var(--brand-light); }
+.band .wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; padding-bottom: 12px; }
+.band h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: 0.01em; color: var(--text-primary); }
+.wrap { max-width: 1040px; margin: 0 auto; padding-left: 16px; padding-right: 16px; }
+main { padding-bottom: 48px; }
+.lede { margin: 16px 0 2px; max-width: 820px; }
+.meta { color: var(--text-muted); font-size: 14px; }
+.theme-toggle { font: inherit; font-size: 14px; color: var(--brand); background: var(--surface-0); border: 1px solid var(--brand);
+  padding: 3px 10px; cursor: pointer; }
+section { margin-top: 28px; }
+h2 { font-size: 19px; font-weight: 700; color: var(--brand-dark); margin: 0 0 2px; }
+.sub { color: var(--text-secondary); font-size: 15px; margin: 0 0 8px; max-width: 820px; }
+.card { background: var(--panel); padding: 14px; }
+.answer { background: var(--brand-tint); padding: 14px 16px; }
+.answer p { margin: 0 0 6px; }
+.answer ul { margin: 0; padding-left: 18px; }
+.answer li { margin: 2px 0; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 10px; }
+.tile { background: var(--brand); color: var(--on-brand); padding: 12px 14px; }
+.tile .value { font-size: 30px; font-weight: 700; line-height: 1.15; margin: 2px 0; }
+.tile .label { font-size: 15px; font-weight: 600; }
+.tile .delta { font-size: 13px; opacity: 0.85; margin-top: 2px; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 14px; color: var(--text-secondary); margin: 0 0 6px; align-items: center; }
+.key { display: inline-flex; align-items: center; gap: 6px; }
+.key s { display: inline-block; width: 12px; height: 12px; text-decoration: none; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.seg { display: inline-flex; border: 1px solid var(--brand); }
+.seg button { font: inherit; font-size: 14px; color: var(--brand); background: var(--surface-0); border: 0; padding: 4px 14px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--brand); }
+.seg button[aria-pressed="true"] { background: var(--brand); color: var(--on-brand); font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { font: inherit; font-size: 14px; color: var(--text-secondary); background: var(--surface-0); border: 1px solid var(--border);
+  padding: 1px 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.chip i { display: inline-block; width: 14px; height: 3px; }
+.chip[aria-pressed="true"] { border-color: var(--brand); color: var(--brand); font-weight: 600; }
+.chip.dim { opacity: 0.45; }
+.hint, .note { color: var(--text-muted); font-size: 13px; margin: 6px 0 0; }
+.chart { width: 100%; overflow: hidden; }
+.chart svg, .chart figure { max-width: 100%; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } }
+.grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.grid2.px { grid-template-columns: 1.2fr 1fr; align-items: start; }
+@media (max-width: 860px) { .grid2.px { grid-template-columns: 1fr; } }
+details { background: var(--panel); margin-top: 10px; }
+details > summary { cursor: pointer; padding: 10px 14px; font-weight: 600; list-style: none; display: flex; justify-content: space-between; }
+details > summary::after { content: "⌄"; color: var(--text-secondary); }
+details[open] > summary::after { content: "⌃"; }
+details > div { padding: 0 14px 12px; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; font-size: 14px; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--text-secondary); font-weight: 600; }
+tr.now td { font-weight: 700; color: var(--accent); }
+ul.compact, ol.compact { margin: 4px 0 8px; padding-left: 18px; }
+ul.compact li, ol.compact li { margin: 2px 0; }
+a { color: var(--brand); }
+footer { margin-top: 32px; color: var(--text-muted); font-size: 13px; border-top: 1px solid var(--border); padding-top: 10px; }
+</style>
+</head>
+<body>
+<div class="band"><div class="wrap">
+  <h1>Bladeren in Spanderswoud</h1>
+  <button class="theme-toggle" id="theme" type="button" aria-label="Wissel licht/donker thema">Thema</button>
+</div></div>
+<main class="wrap">
+<p class="lede"><b>Stelling:</b> <em>de bladeren kwamen dit jaar later aan de bomen, en daardoor hangen er nu nog relatief veel aan.</em> Getoetst met Sentinel-2 (2017–2026) voor het loofbos in Spanderswoud, Hilversum.</p>
+<div class="meta" id="meta"></div>
+
+<section>
+  <div class="answer" id="answer"></div>
+  <div class="tiles" id="tiles"></div>
+</section>
+
+<section>
+  <h2>Groenheid door het seizoen</h2>
+  <p class="sub">NDVI loofbos min naaldbos (naaldbos als referentie voor nevel en belichting). Punten: heldere opnamen; lijnen: fit.</p>
+  <div class="card">
+    <div class="toolbar">
+      <div class="chips" id="yearchips" role="group" aria-label="Jaar uitlichten"></div>
+      <div class="seg" role="group" aria-label="Weergave">
+        <button type="button" data-view="overlay" aria-pressed="true">Samen</button>
+        <button type="button" data-view="facet" aria-pressed="false">Per jaar</button>
+      </div>
+    </div>
+    <div class="chart" id="curves"></div>
+    <div class="hint" id="curvehint"></div>
+  </div>
+</section>
+
+<section class="grid2">
+  <div>
+    <h2>Uitloop per jaar</h2>
+    <p class="sub">Helft van de vergroening. Punt: fit (open: &lt; 6 opnamen); lijn: tussen opname vóór en ná.</p>
+    <div class="card"><div class="chart" id="spring"></div></div>
+  </div>
+  <div>
+    <h2>Verkleuring per jaar</h2>
+    <p class="sub">Helft van het zomergroen weg. Open punt: &lt; 6 opnamen; pijl: nog niet bereikt.</p>
+    <div class="card"><div class="chart" id="t50"></div></div>
+  </div>
+</section>
+
+<section class="grid3">
+  <div>
+    <h2>Septembertemperatuur</h2>
+    <p class="sub">De Bilt (KNMI) tegen moment van verkleuring.</p>
+    <div class="card"><div class="chart" id="temp"></div></div>
+  </div>
+  <div>
+    <h2>Grondvorst sep–okt</h2>
+    <p class="sub">Nachten met minimum op 10 cm onder 0 °C, De Bilt.</p>
+    <div class="card"><div class="chart" id="frost"></div></div>
+  </div>
+  <div>
+    <h2>Uitloop en verkleuring</h2>
+    <p class="sub">Is de herfst later na een late uitloop?</p>
+    <div class="card"><div class="chart" id="link"></div></div>
+  </div>
+</section>
+
+<section>
+  <h2>Groen over op 28 oktober 2026</h2>
+  <p class="sub">Per loofbospixel (10 m), als aandeel van het eigen zomergroen.</p>
+  <div class="card">
+    <div class="legend" id="maplegend"></div>
+    <div class="chart" id="map"></div>
+  </div>
+</section>
+
+<section>
+  <h2>Dag van uitloop en verkleuring per pixel</h2>
+  <p class="sub">Eerste bevestigde overschrijding van de helft, geïnterpoleerd tussen opnamen.</p>
+  <div class="card">
+    <div class="toolbar">
+      <div class="chips" id="pxyears" role="group" aria-label="Jaar"></div>
+      <div class="seg" id="pxphase" role="group" aria-label="Fase">
+        <button type="button" data-phase="sos" aria-pressed="true">Uitloop</button>
+        <button type="button" data-phase="eos" aria-pressed="false">Verkleuring</button>
+      </div>
+    </div>
+    <div class="legend" id="pxlegend"></div>
+    <div class="grid2 px">
+      <div class="chart" id="pxmap"></div>
+      <div><div class="chart" id="pxhist"></div><p class="note" id="pxnote"></p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <details>
+    <summary>Alle jaren in een tabel</summary>
+    <div class="table-wrap"><table id="table"></table></div>
+  </details>
+  <details>
+    <summary>Meer informatie</summary>
+    <div>
+      <ol class="compact">
+        <li><b>Beelden:</b> Sentinel-2 L2A, tegel 31UFT, 2017 – 28 okt 2026 (Earth Search/AWS).</li>
+        <li><b>Wolken:</b> SCL vegetatie/kale grond en blauw &lt; 0,06; opname telt bij ≥ 80% helder loofbos.</li>
+        <li><b>Bostype:</b> uit de data, binnen de OSM-grens. Loofbos: zomer-NDVI ≥ 0,75 en ≥ 0,25 lager in de winter (<span id="ha-loof"></span> ha). Naaldbos: zomer ≈ winter (<span id="ha-naald"></span> ha).</li>
+        <li><b>Signaal:</b> mediane NDVI loofbos min naaldbos per opname.</li>
+        <li><b>Momenten:</b> logistische toename en afname per jaar met vaste steilheid. Uitloop en verkleuring (t50) = helft bereikt; t15 ≈ HR-VPP <em>end of season</em>.</li>
+        <li><b>Per pixel:</b> genormaliseerd op eigen winter- en zomerniveau, naaldbos-correctie, bevestiging door volgende opname, interpolatie.</li>
+        <li><b>Weer:</b> KNMI De Bilt (260), 1 sep – 31 okt.</li>
+      </ol>
+      <b>Kanttekeningen</b>
+      <ul class="compact">
+        <li>Satellieten zien groen blad; bruin blad dat nog hangt telt als weg.</li>
+        <li>2026: geen heldere opname tussen 22 mrt en 21 apr; laatste herfstopname 28 okt. De datum 2 nov is een modelschatting.</li>
+        <li>Eén bos (±50 ha loofbos), 9–10 jaren: geen landelijk beeld.</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<footer>
+  Bronnen: Copernicus Sentinel-2 (ESA/EU) via Earth Search · © OpenStreetMap-bijdragers (ODbL) · KNMI daggegevens ·
+  <a href="https://www.naturetoday.com/intl/nl/observations/natuurkalender">De Natuurkalender</a> ·
+  <a href="https://github.com/mattijn/bladeren-spanderswoud">Code en data</a> · Analyse: HKV.
+</footer>
+</main>
+
+<script>
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const REF_YEAR = 2001; // niet-schrikkeljaar: dag-van-het-jaar -> datum voor de as
+const doyDate = d => new Date(Date.UTC(REF_YEAR, 0, 1) + (d - 1) * 864e5);
+const fmtDay = d3.utcFormat("%-d %b");
+const nl = d3.timeFormatLocale({dateTime: "%a %e %B %Y %X", date: "%d-%m-%Y", time: "%H:%M:%S", periods: ["", ""],
+  days: ["zondag","maandag","dinsdag","woensdag","donderdag","vrijdag","zaterdag"],
+  shortDays: ["zo","ma","di","wo","do","vr","za"],
+  months: ["januari","februari","maart","april","mei","juni","juli","augustus","september","oktober","november","december"],
+  shortMonths: ["jan","feb","mrt","apr","mei","jun","jul","aug","sep","okt","nov","dec"]});
+const dayFmt = nl.utcFormat("%-d %b");
+const dayLong = nl.utcFormat("%-d %B");
+const doyStr = d => dayFmt(doyDate(d));
+const doyLong = d => dayLong(doyDate(d));
+const pct = v => v == null ? "–" : `${Math.round(v * 100)}%`;
+const num = (v, n = 3) => v == null ? "–" : v.toLocaleString("nl-NL", {minimumFractionDigits: n, maximumFractionDigits: n});
+
+let DATA;
+
+function themeColors() {
+  return {accent: css("--accent"), context: css("--context"), soft: css("--context-soft"), ref: css("--ref"),
+    text: css("--text-primary"), text2: css("--text-secondary"), muted: css("--text-muted"), grid: css("--grid"),
+    surface: css("--panel"), out: css("--map-out"), naald: css("--map-naald"), lo: css("--seq-lo"), hi: css("--seq-hi"),
+    years: css("--years").split(",").map(v => v.trim()), doy: css("--doy").split(",").map(v => v.trim()),
+    div: css("--div").split(",").map(v => v.trim()), notyet: css("--notyet")};
+}
+
+function baseStyle(c) {
+  return {fontFamily: '"Source Sans 3", "Segoe UI", Verdana, sans-serif', fontSize: "13px", color: c.text2, background: "transparent", overflow: "visible"};
+}
+
+function summary() {
+  const ys = DATA.years, now = ys.find(d => d.season === 2026), prev = ys.find(d => d.season === 2025);
+  const ref = ys.filter(d => d.season < 2026);
+  const refS = ref.filter(d => d.sos50 != null);
+  const med = {t50: d3.median(ref, d => d.t50), frac: d3.median(ref, d => d.frac_28okt),
+    sos: d3.median(refS, d => d.sos50), season: d3.median(refS, d => d.season_days)};
+  const rankAut = ref.filter(d => d.t50 > now.t50).length + 1;
+  const rankSos = refS.filter(d => d.sos50 < now.sos50).length + 1;                 // vroeg -> laat
+  const rankSeason = refS.filter(d => d.season_days > now.season_days).length + 1;  // lang -> kort
+  const lateSpring = refS.filter(d => d.spr_lo != null && d.spr_lo > now.spr_hi).map(d => d.season);
+  return {now, prev, ref, refS, med, rankAut, rankSos, rankSeason, lateSpring, n: ys.length, nS: refS.length + 1};
+}
+
+const ord = n => n === 1 ? "eerste" : n === 2 ? "tweede" : `${n}e`;
+const days = n => `${Math.abs(n)} dag${Math.abs(n) === 1 ? "" : "en"}`;
+
+function renderText() {
+  const s = summary(), c = s.now, st = DATA.stats;
+  const rho = o => `ρ ${num(o.rho, 2)}, n=${o.n}`;
+  const lastObs = new Date(st.last_obs);
+  // deelantwoorden, afgeleid uit de data
+  const spring = c.spr_hi <= s.med.sos + 3 ? "Nee" : c.spr_lo > s.med.sos + 3 ? "Ja" : "Onzeker";
+  const [b0, b1] = st.frac_band, mid = (b0 + b1) / 2;
+  const green = b0 > s.med.frac + 0.05 ? "Ja" : b1 < s.med.frac - 0.05 ? "Nee" : mid - s.med.frac >= 0.02 ? "Iets" : "Normaal";
+  const cause = spring === "Nee" ? "Nee" : "Mogelijk";
+  const weather = Math.abs(st.rho_sep.rho) < 0.3 && st.rho_okt.p > 0.05 ? "Onduidelijk" : "Mogelijk";
+  const earliest = s.ref.every(d => d.t50 >= s.prev.t50);
+  const sosLo = Math.min(st.px_sos_2026, c.sos50), sosHi = Math.max(st.px_sos_2026, c.sos50);
+  const noFrost = s.ref.filter(d => d.grondvorst === 0).map(d => d.season);
+  const dAut = Math.round(c.t50 - s.med.t50);
+
+  document.getElementById("meta").textContent = `Laatste heldere opname: ${dayLong(lastObs)} ${lastObs.getUTCFullYear()} · normaal = mediaan van de eerdere jaren`;
+  document.getElementById("answer").innerHTML = `
+    <p><b>Conclusie:</b> ${spring === "Nee" ? "niet later uitgelopen, eerder vroeg" : "uitloop " + spring.toLowerCase()}.
+    Nu ${green === "Iets" ? "rond of iets boven normaal" : green.toLowerCase()} groen; dat valt vooral op naast 2025${earliest ? ", het vroegst kale jaar van de reeks" : ""}. Geen duidelijke weersverklaring.</p>
+    <ul>
+      <li><b>Uitloop:</b> op ${doyStr(c.spr_hi)} al over de helft (normaal ±${doyStr(s.med.sos)}); schattingen ${doyStr(sosLo)}–${doyStr(sosHi)}.</li>
+      <li><b>Nu:</b> op ${doyStr(st.last_obs_doy)} ${pct(b0)}–${pct(b1)} van het zomergroen over (normaal ${pct(s.med.frac)}; 2025: ${pct(s.prev.frac_28okt)}). Model: helft verkleurd ±${doyStr(c.t50)}, ${dAut >= 0 ? "+" : ""}${dAut} d t.o.v. normaal, binnen de onzekerheid.</li>
+      <li><b>Oorzaak:</b> late uitloop gaat vaak samen met een late herfst (${rho(st.rho_link)}), maar 2026 liep niet laat uit. Septembertemperatuur hangt niet samen met de verkleuring (${rho(st.rho_sep)}); geen grondvorst, maar ook niet in ${noFrost.join(", ")}.</li>
+      <li><b>Let op:</b> de satelliet ziet groen blad, niet bruin blad dat nog hangt. Eén bos (${num(DATA.area_ha.loof, 0)} ha loofbos), geen landelijk beeld.</li>
+    </ul>`;
+  const tile = (q, a, d) => `<div class="tile"><div class="label">${q}</div><div class="value">${a}</div><div class="delta">${d}</div></div>`;
+  document.getElementById("tiles").innerHTML =
+    tile("Later uitgelopen?", spring, `uiterlijk ${doyStr(c.spr_hi)}, normaal ±${doyStr(s.med.sos)}`) +
+    tile("Nu meer groen blad?", green, `${pct(b0)}–${pct(b1)} groen, normaal ${pct(s.med.frac)}`) +
+    tile("Komt dat door de uitloop?", cause, `2026 liep niet laat uit`) +
+    tile("Door het weer?", weather, `geen verband met septembertemperatuur`);
+  document.getElementById("ha-loof").textContent = num(DATA.area_ha.loof, 0);
+  document.getElementById("ha-naald").textContent = num(DATA.area_ha.naald, 0);
+}
+
+// Seizoensgrafiek: 'overlay' (alle jaren samen, één jaar uit te lichten) of 'facet' (klein paneel per jaar).
+let VIEW = "overlay", FOCUS = null;
+
+function yearColor(c, season) {
+  if (season === 2026) return c.accent;
+  const ys = DATA.years.map(d => d.season).filter(y => y < 2026).sort();
+  return c.years[Math.round(ys.indexOf(season) * (c.years.length - 1) / Math.max(ys.length - 1, 1))];
+}
+
+function renderChips(c) {
+  const el = document.getElementById("yearchips");
+  el.replaceChildren(...DATA.years.map(d => d.season).sort().map(y => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip" + (FOCUS != null && FOCUS !== y && VIEW === "overlay" ? " dim" : "");
+    b.setAttribute("aria-pressed", String(FOCUS === y));
+    b.innerHTML = `<i style="background:${yearColor(c, y)}"></i>${y}`;
+    b.addEventListener("click", () => { FOCUS = FOCUS === y ? null : y; VIEW = "overlay"; syncView(); render(); });
+    return b;
+  }));
+}
+
+function syncView() {
+  document.querySelectorAll(".seg button[data-view]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.view === VIEW)));
+  document.getElementById("curvehint").textContent = VIEW === "overlay"
+    ? "Klik op een jaar om het uit te lichten. Verticale lijn: 28 oktober."
+    : "Per paneel één jaar; 2026 ter vergelijking in rood, overige jaren grijs.";
+}
+
+function renderCurves(c, width) {
+  return VIEW === "facet" ? renderFacets(c, width) : renderOverlay(c, width);
+}
+
+function renderOverlay(c, width) {
+  const obs = DATA.obs.map(d => ({...d, x: doyDate(d.doy)}));
+  const curves = DATA.curves.map(d => ({...d, x: doyDate(d.doy)}));
+  const on = y => FOCUS == null || FOCUS === y || y === 2026;
+  // achtergrondjaren eerst, uitgelicht jaar en 2026 bovenop
+  const order = y => (y === 2026 ? 2 : FOCUS === y ? 1 : 0);
+  const seasons = DATA.years.map(d => d.season).sort((a, b) => order(a) - order(b) || a - b);
+  const marks = [Plot.gridY({stroke: c.grid, strokeOpacity: 1}),
+    Plot.ruleX([doyDate(DATA.target_doy)], {stroke: c.ref, strokeWidth: 1})];
+  for (const y of seasons) {
+    const col = yearColor(c, y), now = y === 2026, hi = FOCUS === y;
+    const op = on(y) ? 1 : 0.12;
+    marks.push(Plot.line(curves.filter(d => d.season === y), {x: "x", y: "delta", stroke: col, strokeOpacity: op,
+      strokeWidth: now || hi ? 3 : 1.5, strokeLinecap: "round"}));
+    marks.push(Plot.dot(obs.filter(d => d.season === y), {x: "x", y: "delta", r: now || hi ? 4.5 : 2.5, fill: col,
+      fillOpacity: op, stroke: now || hi ? c.surface : "none", strokeWidth: 1.5}));
+  }
+  const lastNow = curves.filter(d => d.season === 2026).at(-1);
+  marks.push(Plot.text([lastNow], {x: "x", y: "delta", text: () => "2026", dx: 10, textAnchor: "start", fill: c.text, fontWeight: 600}));
+  if (FOCUS != null && FOCUS !== 2026) {
+    const end = curves.filter(d => d.season === FOCUS).at(-1);
+    marks.push(Plot.text([end], {x: "x", y: "delta", text: () => String(FOCUS), dx: 6, dy: -10, textAnchor: "end", fill: c.text, fontWeight: 600}));
+  }
+  marks.push(Plot.tip(obs.filter(d => on(d.season)), Plot.pointer({x: "x", y: "delta", fill: c.surface, stroke: c.grid,
+    title: d => `Seizoen ${d.season}\n${dayLong(new Date(d.date))} ${d.date.slice(0, 4)}\nloof − naald: ${num(d.delta)}\nNDVI loof ${num(d.ndvi)} · naald ${num(d.ndvi_conif)}`})));
+  return Plot.plot({
+    width, height: Math.max(320, Math.min(440, width * 0.44)), marginLeft: 48, marginRight: 56, marginBottom: 36,
+    style: baseStyle(c),
+    x: {type: "utc", domain: [doyDate(32), doyDate(380)], tickFormat: dayFmt, ticks: d3.utcMonth.every(width < 600 ? 2 : 1), label: null},
+    y: {label: "NDVI loof − naald", grid: true, tickFormat: d => d.toLocaleString("nl-NL")},
+    marks
+  });
+}
+
+function renderFacets(c, width) {
+  const seasons = DATA.years.map(d => d.season).sort();
+  const cols = width < 520 ? 2 : width < 860 ? 3 : 5;
+  const pos = new Map(seasons.map((y, i) => [y, {fx: i % cols, fy: Math.floor(i / cols)}]));
+  const tag = d => ({...d, x: doyDate(d.doy), ...pos.get(d.season)});
+  const curves = DATA.curves.map(tag), obs = DATA.obs.map(tag);
+  const ref = DATA.curves.filter(d => d.season === 2026).map(d => ({...d, x: doyDate(d.doy)}));
+  const rows = Math.ceil(seasons.length / cols);
+  const panelH = width < 520 ? 130 : 150;
+  const own = seasons.filter(y => y !== 2026);
+  return Plot.plot({
+    width, height: rows * panelH + 40, marginLeft: 44, marginRight: 8, marginTop: 8, marginBottom: 30,
+    style: baseStyle(c),
+    fx: {axis: null, padding: 0.08}, fy: {axis: null, padding: 0.12},
+    x: {type: "utc", domain: [doyDate(32), doyDate(380)], tickFormat: dayFmt, ticks: [doyDate(91), doyDate(213), doyDate(335)], label: null},
+    y: {label: null, ticks: 3, grid: true, tickFormat: d => d.toLocaleString("nl-NL")},
+    marks: [
+      Plot.frame({stroke: c.grid}),
+      Plot.ruleX(seasons.map(y => ({...pos.get(y), x: doyDate(DATA.target_doy)})), {x: "x", fx: "fx", fy: "fy", stroke: c.grid}),
+      // overige jaren als lichte achtergrond in elk paneel
+      Plot.line(curves, {x: "x", y: "delta", z: "season", fx: "fx", fy: "fy", facet: "exclude", stroke: c.soft, strokeWidth: 1}),
+      // 2026 als referentie in elk paneel (zonder facetkanaal = herhaald)
+      Plot.line(ref, {x: "x", y: "delta", stroke: c.accent, strokeWidth: 1.5, strokeOpacity: 0.9}),
+      ...own.map(y => Plot.line(curves.filter(d => d.season === y), {x: "x", y: "delta", fx: "fx", fy: "fy", stroke: yearColor(c, y), strokeWidth: 2.5})),
+      ...own.map(y => Plot.dot(obs.filter(d => d.season === y), {x: "x", y: "delta", fx: "fx", fy: "fy", r: 2.5, fill: yearColor(c, y)})),
+      Plot.dot(obs.filter(d => d.season === 2026), {x: "x", y: "delta", fx: "fx", fy: "fy", r: 3.5, fill: c.accent}),
+      Plot.text(seasons.map(y => ({...pos.get(y), label: String(y)})), {fx: "fx", fy: "fy", text: "label", frameAnchor: "top-left",
+        dx: 6, dy: 6, fill: c.text, fontWeight: 600, fontSize: 13})
+    ]
+  });
+}
+
+// Eén paneel per fase: punt = gefitte datum, lijn = afbakening door opnamen, pijl = nog niet bereikt.
+function renderPhase(c, width, phase) {
+  const spring = phase === "spring";
+  const key = spring ? "sos50" : "t50", loK = spring ? "spr_lo" : "aut_lo", hiK = spring ? "spr_hi" : "aut_hi";
+  const domain = spring ? [doyDate(60), doyDate(152)] : [doyDate(265), doyDate(352)];
+  const clampD = v => v < domain[0] ? domain[0] : v > domain[1] ? domain[1] : v;
+  const seg = DATA.years.filter(d => d[key] != null).map(d => ({...d, now: d.season === 2026, y: String(d.season),
+    x: doyDate(d[key]), x1: clampD(doyDate(d[loK])), x2: d[hiK] == null ? domain[1] : clampD(doyDate(d[hiK])), open: d[hiK] == null}));
+  const med = d3.median(DATA.years.filter(d => d.season < 2026 && d[key] != null), d => d[key]);
+  const rule = (data, color) => Plot.ruleY(data, {y: "y", x1: "x1", x2: "x2", stroke: color, strokeWidth: 2, strokeLinecap: "round"});
+  const nObs = d => spring ? d.n_spring_obs : d.n_autumn_obs;
+  const dot = (data, color, r) => [
+    Plot.dot(data.filter(d => nObs(d) >= 6), {y: "y", x: "x", r, fill: color, stroke: c.surface, strokeWidth: 2}),
+    Plot.dot(data.filter(d => nObs(d) < 6), {y: "y", x: "x", r: r - 0.5, fill: c.surface, stroke: color, strokeWidth: 2})];
+  return Plot.plot({
+    width, height: 380, marginLeft: 44, marginRight: 22, marginTop: 24, marginBottom: 32,
+    style: baseStyle(c),
+    x: {type: "utc", domain, tickFormat: dayFmt, ticks: width < 420 ? 4 : 6, label: null, grid: true},
+    y: {type: "band", domain: DATA.years.map(d => String(d.season)).reverse(), label: null, padding: 0.4},
+    marks: [
+      Plot.gridX({stroke: c.grid, strokeOpacity: 1}),
+      Plot.ruleX([doyDate(med)], {stroke: c.ref, strokeWidth: 1}),
+      Plot.text([doyDate(med)], {x: d => d, frameAnchor: "top", dy: -14, text: () => "mediaan", fill: c.muted, textAnchor: "middle"}),
+      rule(seg.filter(d => !d.now), c.context), rule(seg.filter(d => d.now), c.accent),
+      Plot.text(seg.filter(d => d.open), {y: "y", x: "x2", text: () => "→", dx: 2, textAnchor: "start", fill: d => d.now ? c.accent : c.context, fontSize: 14, fontWeight: 700}),
+      ...dot(seg.filter(d => !d.now), c.context, 4.5), ...dot(seg.filter(d => d.now), c.accent, 6),
+      Plot.tip(seg, Plot.pointerY({y: "y", x: "x", fill: c.surface, stroke: c.grid,
+        title: d => spring
+          ? `${d.season}\nuitloop (helft vergroening): ${doyLong(d.sos50)}\nafgebakend: ${doyStr(d.spr_lo)} – ${doyStr(d.spr_hi)}\nheldere voorjaarsopnamen: ${d.n_spring_obs}`
+          : `${d.season}\nverkleuring t50: ${doyLong(d.t50)}\nafgebakend: ${doyStr(d.aut_lo)} – ${d.open ? "nog niet bereikt" : doyStr(d.aut_hi)}\nzomergroen over op 28 okt: ${pct(d.frac_28okt)}\nheldere herfstopnamen: ${d.n_autumn_obs}`}))
+    ]
+  });
+}
+
+// Jaarlabels bij puntenwolken: rechts van het punt, links in het rechterdeel van de grafiek,
+// en boven het punt als een buurpunt vlakbij ligt (eenvoudige botsingsvermijding).
+function yearLabels(ys, fx, fy, c) {
+  const xs = ys.map(fx), yv = ys.map(fy);
+  const [x0, x1] = d3.extent(xs), [y0, y1] = d3.extent(yv);
+  const rx = (x1 - x0) || 1, ry = (y1 - y0) || 1;
+  const pos = ys.map((d, i) => {
+    const j = ys.findIndex((e, k) => k !== i && Math.abs(xs[k] - xs[i]) / rx < 0.12 && Math.abs(yv[k] - yv[i]) / ry < 0.08 && (xs[k] < xs[i] || (+xs[k] === +xs[i] && k < i)));
+    if (j >= 0) return yv[i] < yv[j] ? "bottom" : "top";
+    return (xs[i] - x0) / rx > 0.7 ? "left" : "right";
+  });
+  const mk = (where, now) => {
+    const data = ys.filter((d, i) => pos[i] === where && d.now === now);
+    const o = where === "top" ? {dy: -12, textAnchor: "middle"} : where === "bottom" ? {dy: 13, textAnchor: "middle"}
+      : where === "left" ? {dx: -9, textAnchor: "end"} : {dx: 9, textAnchor: "start"};
+    return Plot.text(data, {x: fx, y: fy, text: d => String(d.season), ...o, fill: now ? c.text : c.muted, fontWeight: now ? 600 : 400});
+  };
+  return ["top", "bottom", "left", "right"].flatMap(w => [mk(w, false), mk(w, true)]);
+}
+
+function renderLink(c, width) {
+  const ys = DATA.years.filter(d => d.sos50 != null).map(d => ({...d, now: d.season === 2026, x: doyDate(d.sos50), y: doyDate(d.t50)}));
+  return Plot.plot({
+    width, height: 360, marginLeft: 52, marginRight: 36, marginBottom: 40,
+    style: baseStyle(c),
+    x: {type: "utc", tickFormat: dayFmt, ticks: 5, label: "Bladuitloop →", inset: 12},
+    y: {type: "utc", tickFormat: dayFmt, ticks: d3.utcWeek.every(1), label: "↑ Verkleuring (t50)", grid: true, inset: 8},
+    marks: [
+      Plot.gridX({stroke: c.grid, strokeOpacity: 1, ticks: 5}), Plot.gridY({stroke: c.grid, strokeOpacity: 1}),
+      Plot.dot(ys.filter(d => !d.now), {x: "x", y: "y", r: 4.5, fill: c.context, stroke: c.surface, strokeWidth: 2}),
+      Plot.dot(ys.filter(d => d.now), {x: "x", y: "y", r: 6, fill: c.accent, stroke: c.surface, strokeWidth: 2}),
+      ...yearLabels(ys, d => d.x, d => d.y, c),
+      Plot.tip(ys, Plot.pointer({x: "x", y: "y", fill: c.surface, stroke: c.grid,
+        title: d => `${d.season}\nuitloop: ${doyLong(d.sos50)}\nverkleuring: ${doyLong(d.t50)}\ngroeiseizoen: ${Math.round(d.season_days)} dagen`}))
+    ]
+  });
+}
+
+function renderTemp(c, width) {
+  const ys = DATA.years.filter(d => d.T_sep != null).map(d => ({...d, now: d.season === 2026, y: doyDate(d.t50)}));
+  return Plot.plot({
+    width, height: 360, marginLeft: 52, marginRight: 24, marginBottom: 40,
+    style: baseStyle(c),
+    x: {label: "Gemiddelde temperatuur september (°C) →", grid: true, tickFormat: d => d.toLocaleString("nl-NL"), nice: true},
+    y: {type: "utc", tickFormat: dayFmt, ticks: d3.utcWeek.every(1), label: "↑ t50", grid: true},
+    marks: [
+      Plot.gridX({stroke: c.grid, strokeOpacity: 1}), Plot.gridY({stroke: c.grid, strokeOpacity: 1}),
+      Plot.dot(ys.filter(d => !d.now), {x: "T_sep", y: "y", r: 4.5, fill: c.context, stroke: c.surface, strokeWidth: 2}),
+      Plot.dot(ys.filter(d => d.now), {x: "T_sep", y: "y", r: 6, fill: c.accent, stroke: c.surface, strokeWidth: 2}),
+      ...yearLabels(ys, d => d.T_sep, d => d.y, c),
+      Plot.tip(ys, Plot.pointer({x: "T_sep", y: "y", fill: c.surface, stroke: c.grid,
+        title: d => `${d.season}\nseptember ${num(d.T_sep, 1)} °C · oktober ${num(d.T_okt, 1)} °C\nnachtvorst sep–okt: ${d.vorstdagen} dag(en)\nt50: ${doyLong(d.t50)}`}))
+    ]
+  });
+}
+
+function renderMap(c, width) {
+  const m = DATA.map, W = m.width, H = m.height;
+  const ramp = d3.interpolateLab(c.lo, c.hi);
+  const cells = [];
+  for (let i = 0; i < W * H; i++) {
+    const k = m.kind[i];
+    if (k === 3 && m.frac[i] != null) {
+      const row = Math.floor(i / W), col = i % W;
+      cells.push({x: m.x1 + (col + 0.5) * 10, y: m.y2 - (row + 0.5) * 10, frac: m.frac[i]});
+    }
+  }
+  const fill = (d, i) => {
+    const k = m.kind[i];
+    if (k === 3) { const f = m.frac[i]; return f == null ? c.out : ramp(Math.max(0, Math.min(1, f))); }
+    if (k === 2) return c.naald;
+    if (k === 1) return c.out;
+    return c.surface;
+  };
+  const aspect = (m.y2 - m.y1) / (m.x2 - m.x1);
+  const w = Math.min(width, 640);
+  const plot = Plot.plot({
+    width: w, height: Math.round(w * aspect), margin: 4,
+    style: baseStyle(c),
+    x: {domain: [m.x1, m.x2], axis: null}, y: {domain: [m.y1, m.y2], axis: null},
+    marks: [
+      Plot.raster(m.kind, {x1: m.x1, x2: m.x2, y1: m.y2, y2: m.y1, width: W, height: H, fill, imageRendering: "pixelated"}),
+      Plot.line(m.boundary, {x: d => d[0], y: d => d[1], stroke: c.text, strokeWidth: 1.25}),
+      Plot.tip(cells, Plot.pointer({x: "x", y: "y", maxRadius: 12, fill: c.surface, stroke: c.grid,
+        title: d => `loofbos · zomergroen over op 28 okt: ${pct(d.frac)}`}))
+    ]
+  });
+  const legend = document.getElementById("maplegend");
+  legend.innerHTML = `<span class="key"><s style="background:var(--map-naald)"></s>naaldbos</span>
+    <span class="key"><s style="background:var(--map-out);outline:1px solid var(--border)"></s>overig binnen grens</span>
+    <span class="key">loofbos, zomergroen over op 28 okt 2026:</span>`;
+  legend.append(Plot.legend({color: {type: "linear", domain: [0, 1], range: [c.lo, c.hi], interpolate: "lab",
+    tickFormat: d3.format(".0%")}, width: 240, ticks: 5, style: baseStyle(c), label: null}));
+  return plot;
+}
+
+function renderFrost(c, width) {
+  const ys = DATA.years.map(d => ({...d, now: d.season === 2026, y: String(d.season)}));
+  const max = Math.max(5, d3.max(ys, d => d.grondvorst));
+  return Plot.plot({
+    width, height: 360, marginLeft: 36, marginRight: 8, marginBottom: 32, marginTop: 20,
+    style: baseStyle(c),
+    x: {type: "band", domain: ys.map(d => d.y), label: null, padding: 0.35, tickFormat: d => width < 360 ? "’" + d.slice(2) : d},
+    y: {domain: [0, max], label: "↑ nachten grondvorst", grid: true, ticks: max},
+    marks: [
+      Plot.gridY({stroke: c.grid, strokeOpacity: 1}),
+      Plot.barY(ys.filter(d => !d.now), {x: "y", y: "grondvorst", fill: c.context, rx: 4, insetBottom: 0}),
+      Plot.barY(ys.filter(d => d.now), {x: "y", y: "grondvorst", fill: c.accent, rx: 4}),
+      Plot.ruleY([0], {stroke: c.text2}),
+      Plot.text(ys, {x: "y", y: "grondvorst", text: d => String(d.grondvorst), dy: -8, fill: d => d.now ? c.text : c.muted,
+        fontWeight: d => d.now ? 600 : 400}),
+      Plot.tip(ys, Plot.pointerX({x: "y", y: "grondvorst", fill: c.surface, stroke: c.grid,
+        title: d => `${d.season}\ngrondvorst sep–okt: ${d.grondvorst} nacht(en)\nluchtvorst sep–okt: ${d.vorstdagen} nacht(en)\neerste grondvorst: ${d.eerste_grondvorst ? dayLong(new Date(d.eerste_grondvorst)) : "nog niet (t/m 31 okt)"}\nverkleuring t50: ${doyLong(d.t50)}`}))
+    ]
+  });
+}
+
+// ---------- pixelkaart: dag van uitloop / verkleuring ----------
+let PX_PHASE = "sos", PX_YEAR = "2026";
+const PX_DOMAIN = {sos: [84, 136], eos: [283, 325]};   // 25 mrt - 16 mei; 10 okt - 21 nov
+const PX_ANOM = 14;                                      // ± dagen voor de afwijkingskaart
+
+function pxValues(year, phase) {
+  return DATA.pixel.years[year] ? DATA.pixel.years[year][phase] : null;
+}
+
+function pxMedianOther(phase) {
+  // per pixel de mediaan over 2017-2025 (alleen bepaalde waarden; 'nog niet bereikt' telt niet mee)
+  const yrs = Object.keys(DATA.pixel.years).filter(y => y !== "2026");
+  return DATA.pixel.index.map((_, i) => d3.median(yrs.map(y => DATA.pixel.years[y][phase][i]).filter(v => v != null && v > 0)));
+}
+
+function renderPxChips(c) {
+  const opts = Object.keys(DATA.pixel.years).sort().concat(["anom"]);
+  document.getElementById("pxyears").replaceChildren(...opts.map(y => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip";
+    b.setAttribute("aria-pressed", String(PX_YEAR === y));
+    b.textContent = y === "anom" ? "2026 t.o.v. mediaan" : y;
+    b.addEventListener("click", () => { PX_YEAR = y; renderPixel(themeColors()); });
+    return b;
+  }));
+  document.querySelectorAll("#pxphase button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.phase === PX_PHASE)));
+}
+
+function renderPixel(c) {
+  renderPxChips(c);
+  const m = DATA.map, W = m.width, idx = DATA.pixel.index;
+  const anom = PX_YEAR === "anom";
+  const [d0, d1] = PX_DOMAIN[PX_PHASE];
+  let vals;
+  if (anom) {
+    const now = pxValues("2026", PX_PHASE), med = pxMedianOther(PX_PHASE);
+    vals = now.map((v, i) => v === -1 ? Infinity : v == null || med[i] == null ? null : v - med[i]);
+  } else vals = pxValues(PX_YEAR, PX_PHASE).map(v => v === -1 ? Infinity : v);
+  const byCell = new Map(idx.map((cell, i) => [cell, vals[i]]));
+  const seq = d3.scaleLinear().domain(d3.range(c.doy.length).map(k => d0 + k * (d1 - d0) / (c.doy.length - 1))).range(c.doy).clamp(true);
+  const div = d3.scaleLinear().domain([-PX_ANOM, 0, PX_ANOM]).range(c.div).clamp(true);
+  const colorOf = v => v == null ? c.out : v === Infinity ? c.notyet : anom ? div(v) : seq(v);
+  const fill = (_, i) => {
+    const k = m.kind[i];
+    if (k === 3) return colorOf(byCell.get(i));
+    if (k === 2) return c.naald;
+    if (k === 1) return c.out;
+    return c.surface;
+  };
+  const mapEl = document.getElementById("pxmap");
+  const w = Math.min(mapEl.clientWidth, 560), aspect = (m.y2 - m.y1) / (m.x2 - m.x1);
+  const cells = idx.map((cell, i) => ({x: m.x1 + (cell % W + 0.5) * 10, y: m.y2 - (Math.floor(cell / W) + 0.5) * 10, v: vals[i]}))
+    .filter(d => d.v != null);
+  const label = v => v === Infinity ? "nog niet bereikt op de laatste opname" : anom ? `${v > 0 ? "+" : ""}${Math.round(v)} dagen t.o.v. mediaan` : doyLong(v);
+  mapEl.replaceChildren(Plot.plot({
+    width: w, height: Math.round(w * aspect), margin: 4, style: baseStyle(c),
+    x: {domain: [m.x1, m.x2], axis: null}, y: {domain: [m.y1, m.y2], axis: null},
+    marks: [
+      Plot.raster(m.kind, {x1: m.x1, x2: m.x2, y1: m.y2, y2: m.y1, width: W, height: m.height, fill, imageRendering: "pixelated"}),
+      Plot.line(m.boundary, {x: d => d[0], y: d => d[1], stroke: c.text, strokeWidth: 1.25}),
+      Plot.tip(cells, Plot.pointer({x: "x", y: "y", maxRadius: 12, fill: c.surface, stroke: c.grid, title: d => label(d.v)}))
+    ]
+  }));
+
+  // legenda
+  const leg = document.getElementById("pxlegend");
+  leg.innerHTML = `<span class="key"><s style="background:var(--map-naald)"></s>naaldbos</span>
+    <span class="key"><s style="background:var(--map-out);outline:1px solid var(--border)"></s>overig / niet bepaald</span>
+    <span class="key"><s style="background:var(--notyet)"></s>nog niet bereikt</span>`;
+  leg.append(anom
+    ? Plot.legend({color: {type: "linear", domain: [-PX_ANOM, 0, PX_ANOM], range: c.div, tickFormat: d => `${d > 0 ? "+" : ""}${d} d`},
+        width: 260, ticks: 5, style: baseStyle(c), label: "eerder ← → later"})
+    : Plot.legend({color: {type: "linear", domain: seq.domain(), range: c.doy, tickFormat: v => doyStr(v)},
+        width: 300, ticks: 4, style: baseStyle(c), label: null}));
+
+  // histogram
+  const valid = vals.filter(v => v != null && v !== Infinity);
+  const notyet = vals.filter(v => v === Infinity).length, total = vals.filter(v => v != null).length;
+  const biased = notyet / Math.max(total, 1) > 0.2;
+  const med = biased ? null : d3.median(valid);
+  const histEl = document.getElementById("pxhist");
+  const hw = histEl.clientWidth;
+  const binX = anom ? {domain: [-30, 30], label: "dagen t.o.v. mediaan 2017–2025 →"} : {domain: [d0 - 10, d1 + 10], label: null, tickFormat: v => doyStr(v)};
+  histEl.replaceChildren(Plot.plot({
+    width: hw, height: 240, marginLeft: 44, marginBottom: 36, marginTop: 24, style: baseStyle(c),
+    x: {...binX, nice: false}, y: {label: "↑ % van de loofbospixels", grid: true, tickFormat: d => `${Math.round(d)}`},
+    marks: [
+      Plot.gridY({stroke: c.grid, strokeOpacity: 1}),
+      Plot.rectY(valid, Plot.binX({y: v => v.length / Math.max(total, 1) * 100}, {x: d => d, interval: anom ? 2 : 2,
+        fill: d => anom ? div(d) : seq(d), inset: 1, rx: 2})),
+      Plot.ruleY([0], {stroke: c.text2}),
+      ...(med == null ? [] : [Plot.ruleX([med], {stroke: c.text, strokeWidth: 1.5}),
+        Plot.text([med], {x: d => d, frameAnchor: "top", dy: -14, text: d => `mediaan ${anom ? `${d > 0 ? "+" : ""}${Math.round(d)} d` : doyStr(d)}`, fill: c.text, fontWeight: 600})])
+    ]
+  }));
+  const yr = anom ? "2026" : PX_YEAR;
+  const gap = DATA.pixel.years[yr][PX_PHASE === "sos" ? "gap_spring" : "gap_autumn"];
+  const parts = [];
+  if (notyet) parts.push(`${Math.round(notyet / total * 100)}% nog niet bereikt${biased ? "; histogram toont alleen de vroege pixels, daarom geen mediaan" : ""}.`);
+  parts.push(`Grootste opnamegat ${yr}: ${gap} d.`);
+  if (gap >= 20) parts.push("Bij zo'n gat valt de pixeldatum eerder uit; het ruimtelijk patroon blijft bruikbaar.");
+  if (anom) parts.push("Vergeleken met de mediaan van dezelfde pixel (2017–2025).");
+  document.getElementById("pxnote").textContent = parts.join(" ");
+}
+
+function renderTable() {
+  const rng = (lo, hi) => lo == null ? "–" : `${doyStr(lo)} – ${hi == null ? "…" : doyStr(hi)}`;
+  const rows = DATA.years.slice().reverse().map(d => `<tr class="${d.season === 2026 ? "now" : ""}">
+    <td>${d.season}</td><td>${d.sos50 == null ? "–" : doyStr(d.sos50)}</td><td>${rng(d.spr_lo, d.spr_hi)}</td>
+    <td>${doyStr(d.t50)}</td><td>${rng(d.aut_lo, d.aut_hi)}</td><td>${doyStr(d.t15)}</td>
+    <td>${d.season_days == null ? "–" : Math.round(d.season_days)}</td><td>${pct(d.frac_28okt)}</td>
+    <td>${d.t50_ndvi == null ? "–" : doyStr(d.t50_ndvi)}</td><td>${num(d.T_sep, 1)}</td><td>${d.grondvorst}</td><td>${d.vorstdagen}</td>
+    <td>${d.eerste_grondvorst ? dayFmt(new Date(d.eerste_grondvorst)) : "–"}</td></tr>`).join("");
+  document.getElementById("table").innerHTML = `<thead><tr><th>Jaar</th><th>Uitloop</th><th>afgebakend</th>
+    <th>Verkleuring t50</th><th>afgebakend</th><th>t15</th><th>Seizoen (d)</th><th>Groen over 28 okt</th>
+    <th>t50 ruwe NDVI</th><th>T sep (°C)</th><th>Grondvorst sep–okt</th><th>Luchtvorst sep–okt</th><th>Eerste grondvorst</th></tr></thead><tbody>${rows}</tbody>`;
+}
+
+function mount(id, node) { const el = document.getElementById(id); el.replaceChildren(node); }
+
+function render() {
+  if (!DATA) return;
+  const c = themeColors();
+  renderChips(c);
+  syncView();
+  const full = document.getElementById("curves").clientWidth;
+  mount("curves", renderCurves(c, full));
+  mount("spring", renderPhase(c, document.getElementById("spring").clientWidth, "spring"));
+  mount("t50", renderPhase(c, document.getElementById("t50").clientWidth, "autumn"));
+  mount("temp", renderTemp(c, document.getElementById("temp").clientWidth));
+  mount("frost", renderFrost(c, document.getElementById("frost").clientWidth));
+  mount("link", renderLink(c, document.getElementById("link").clientWidth));
+  renderPixel(c);
+  mount("map", renderMap(c, document.getElementById("map").clientWidth));
+}
+
+function setTheme(t) {
+  try { localStorage.setItem("theme", t); } catch (e) {}
+  document.documentElement.setAttribute("data-theme", t);
+  render();
+}
+document.querySelectorAll(".seg button[data-view]").forEach(b => b.addEventListener("click", () => {
+  VIEW = b.dataset.view; syncView(); render();
+}));
+document.querySelectorAll("#pxphase button").forEach(b => b.addEventListener("click", () => {
+  PX_PHASE = b.dataset.phase; renderPixel(themeColors());
+}));
+document.getElementById("theme").addEventListener("click", () => {
+  const cur = document.documentElement.getAttribute("data-theme") ||
+    (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  setTheme(cur === "dark" ? "light" : "dark");
+});
+try { const t = localStorage.getItem("theme"); if (t) document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
+let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(render, 150); });
+
+fetch("data.json", {cache: "no-cache"}).then(r => r.json()).then(d => { DATA = d;
+  DATA.stats.last_obs_doy = Math.round((Date.parse(d.stats.last_obs) - Date.UTC(+d.stats.last_obs.slice(0, 4), 0, 1)) / 864e5) + 1; renderText(); renderTable(); render(); });
+</script>
+</body>
+</html>
